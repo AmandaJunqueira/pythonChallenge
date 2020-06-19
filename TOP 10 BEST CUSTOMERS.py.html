@@ -1,0 +1,148 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[2]:
+
+
+import pandas as pd
+import datetime as dt
+import warnings
+warnings.filterwarnings('ignore')
+
+
+# In[28]:
+
+
+#DATA
+table = pd.read_csv("tableA.csv")
+
+table2 = pd.read_csv("tableB.csv")
+
+
+# In[29]:
+
+
+tablex = pd.merge(table,table2,on='Conv_ID')
+
+
+# In[30]:
+
+
+customer_channel=tablex[['Channel','User_ID']].drop_duplicates()
+customer_channel.groupby(['Channel'])['User_ID'].aggregate('count').reset_index().sort_values('User_ID', ascending=False)
+
+
+# In[7]:
+
+
+#tablex = tablex.loc[tablex['Channel'] == 'A']
+
+
+# In[31]:
+
+
+tablex = tablex[pd.notnull(tablex['User_ID'])]
+
+
+# In[32]:
+
+
+def unique_counts(df1):
+   for i in tablex.columns:
+       count = tablex[i].nunique()
+       print(i, ": ", count)
+unique_counts(tablex)
+
+
+# In[33]:
+
+
+NOW = dt.datetime(2019,12,10)
+tablex['Conv_Date'] = pd.to_datetime(tablex['Conv_Date'])
+
+
+# In[34]:
+
+
+#CREATING A RFM table
+
+rfmTable = tablex.groupby('User_ID').agg({'Conv_Date': lambda x: (NOW - x.max()).days, 'Conv_ID': lambda x: len(x), 'Revenue': lambda x: x.sum()})
+rfmTable['Conv_Date'] = rfmTable['Conv_Date'].astype(int)
+rfmTable.rename(columns={'Conv_Date': 'recency', 
+                         'Conv_ID': 'frequency', 
+                         'Revenue': 'monetary_value'}, inplace=True)
+
+
+# In[35]:
+
+
+rfmTable.head()
+
+
+# In[36]:
+
+
+quantiles = rfmTable.quantile(q=[0.25,0.5,0.75])
+quantiles = quantiles.to_dict()
+
+
+# In[37]:
+
+
+#SEGMENTED RFM TABLE
+
+segmented_rfm = rfmTable
+
+
+# In[38]:
+
+
+def RScore(x,p,d):
+    if x <= d[p][0.25]:
+        return 1
+    elif x <= d[p][0.50]:
+        return 2
+    elif x <= d[p][0.75]: 
+        return 3
+    else:
+        return 4
+    
+def FMScore(x,p,d):
+    if x <= d[p][0.25]:
+        return 4
+    elif x <= d[p][0.50]:
+        return 3
+    elif x <= d[p][0.75]: 
+        return 2
+    else:
+        return 1
+
+
+# In[39]:
+
+
+segmented_rfm['r_quartile'] = segmented_rfm['recency'].apply(RScore, args=('recency',quantiles,))
+segmented_rfm['f_quartile'] = segmented_rfm['frequency'].apply(FMScore, args=('frequency',quantiles,))
+segmented_rfm['m_quartile'] = segmented_rfm['monetary_value'].apply(FMScore, args=('monetary_value',quantiles,))
+segmented_rfm.head()
+
+
+# In[46]:
+
+
+segmented_rfm['RFMScore']= segmented_rfm.r_quartile.map(str)+segmented_rfm.f_quartile.map(str)+segmented_rfm.m_quartile.map(str)
+segmented_rfm[segmented_rfm['RFMScore']=='444'].sort_values('monetary_value',ascending=False).head(10)
+
+
+# In[82]:
+
+
+#TOP 10 BEST CUSTOMERS = RFMscore = 111
+segmented_rfm[segmented_rfm['RFMScore']=='111'].sort_values('monetary_value', ascending=False).head(10)
+
+
+# In[ ]:
+
+
+
+

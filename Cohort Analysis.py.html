@@ -1,0 +1,175 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[2]:
+
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+import datetime as dt
+import seaborn as sns
+
+
+# In[16]:
+
+
+#DATA
+table = pd.read_csv("tableA.csv")
+
+table2 = pd.read_csv("tableB.csv")
+
+
+# In[7]:
+
+
+channels = table2.pivot_table(index = ['Conv_ID'], columns='Channel', values = 'IHC_Conv')
+
+
+# In[17]:
+
+
+tablex = pd.merge(table,table2,on='Conv_ID')
+
+
+# In[18]:
+
+
+tablex = tablex.dropna(subset=['User_ID'])
+tablex.shape
+
+
+# In[71]:
+
+
+tablex['Conv_Date'] = pd.to_datetime(tablex['Conv_Date'])
+tablex['Conv_Date'] = tablex['Conv_Date'].dt.normalize()
+
+
+# In[72]:
+
+
+def get_month(x):
+    return dt.datetime(x.year, x.month, 1)
+tablex['InvoiceMonth'] = tablex['Conv_Date'].apply(get_month)
+tablex['CohortMonth'] = tablex.groupby('User_ID')['InvoiceMonth'].transform('min')
+
+
+# In[73]:
+
+
+def get_date(df, column):
+    year = df[column].dt.year
+    month = df[column].dt.month
+    day = df[column].dt.day
+    return year, month, day
+
+invoice_year, invoice_month, _ = get_date(tablex, 'InvoiceMonth')
+cohort_year, cohort_month, _ = get_date(tablex, 'CohortMonth')
+year_diff = invoice_year - cohort_year
+month_diff = invoice_month - cohort_month
+tablex['CohortIndex'] = year_diff * 12 + month_diff + 1
+
+
+# In[74]:
+
+
+cohort_data = tablex.groupby(['CohortMonth', 'CohortIndex'])['User_ID'].apply(pd.Series.nunique).reset_index()
+cohort_count = cohort_data.pivot_table(index = 'CohortMonth',
+                                       columns = 'CohortIndex',
+                                       values = 'User_ID')
+cohort_count
+
+
+# In[75]:
+
+
+cohort_size = cohort_count.iloc[:,0]
+retention = cohort_count.divide(cohort_size, axis = 0)
+retention.round(3) * 100
+
+
+# In[76]:
+
+
+plt.figure(figsize = (11,9))
+plt.title('Cohort Analysis - Retention Rate')
+sns.heatmap(data = retention, 
+            annot = True, 
+            fmt = '.0%', 
+            vmin = 0.0,
+            vmax = 0.5,
+            cmap = "BuGn")
+plt.show()
+
+
+# In[39]:
+
+
+cohort_data2 = tablex.groupby(['CohortMonth', 'CohortIndex'])['Revenue'].mean().reset_index()
+average_revenue  = cohort_data2.pivot_table(index = 'CohortMonth',
+                                           columns = 'CohortIndex',
+                                      values = 'Revenue').round(1)
+average_revenue
+
+
+# In[58]:
+
+
+plt.figure(figsize = (11,11))
+plt.title('Cohort Analysis - Average Revenue')
+sns.heatmap(data = average_revenue, 
+            annot = True, 
+            cmap = "Blues",
+           fmt= 'g')
+
+
+plt.show()
+
+
+# In[69]:
+
+
+tablex
+
+
+# In[72]:
+
+
+tablex["IHC_Conv"] = pd.to_numeric(tablex["IHC_Conv"])
+
+
+# In[75]:
+
+
+tablex = tablex.dropna(subset=['IHC_Conv'])
+
+
+# In[88]:
+
+
+
+cohort_data4 = tablex.groupby(['CohortMonth', 'CohortIndex'])["Channel"]..agg(lambda x:x.value_counts().index[0])
+average_channel  = cohort_data4.pivot_table(index = 'CohortMonth',
+                                            columns = 'CohortIndex',
+                                       values = "Channel").round(1)
+average_channel
+
+
+# In[78]:
+
+
+plt.figure(figsize = (11,9))
+plt.title('Cohort Analysis - Average IHC')
+sns.heatmap(data = average_channel, 
+            annot = True, 
+            cmap = "BuGn")
+plt.show()
+
+
+# In[ ]:
+
+
+
+

@@ -1,0 +1,101 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[74]:
+
+
+import pandas as pd
+import numpy as np
+from collections import defaultdict
+from pychattr.channel_attribution import MarkovModel
+from marketing_attribution_models import MAM
+
+
+# In[76]:
+
+
+#DATA
+table = pd.read_csv("tableA.csv")
+
+table2 = pd.read_csv("tableB.csv")
+
+
+# In[77]:
+
+
+tablev = pd.merge(table,table2,on='Conv_ID')
+
+
+# In[ ]:
+
+
+tablev = tablev.sort_values(['Conv_ID', 'Conv_Date'],
+                    ascending=[False, True])
+tablev['visit_order'] = tablev.groupby('Conv_ID').cumcount() + 1
+
+
+# In[79]:
+
+
+tablev
+
+
+# In[80]:
+
+
+df_paths = tablev.groupby('Conv_ID')['Channel'].aggregate(
+    lambda x: x.unique().tolist()).reset_index()
+
+
+# In[100]:
+
+
+df_last_interaction = tablev.drop_duplicates('Conv_ID', keep='last')['Conv_ID']
+df_paths = pd.merge(df_paths, df_last_interaction, how='left', on='Conv_ID')
+
+
+# 
+
+# In[82]:
+
+
+tablet = pd.merge(df_paths, tablev, on = 'Conv_ID')
+
+
+# In[83]:
+
+
+attributions = MAM(tablev,
+    group_channels=True,
+    channels_colname = 'Channel',
+    journey_with_conv_colname= 'IHC_Conv',
+    group_channels_by_id_list=['Conv_ID'],
+    group_timestamp_colname = 'Conv_Date',
+    create_journey_id_based_on_conversion = True)
+
+
+# In[64]:
+
+
+attributions.DataFrame
+
+
+# In[93]:
+
+
+attributions.attribution_last_click()
+attributions.DataFrame
+
+
+# In[94]:
+
+
+attributions.attribution_shapley()
+attributions.group_by_channels_models
+
+
+# In[102]:
+
+
+atr = attributions.attribution_shapley(size=4, order=True, values_col='conv_rate')[0]
+
